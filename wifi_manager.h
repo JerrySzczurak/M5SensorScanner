@@ -1,28 +1,18 @@
 #pragma once
 #include <Arduino.h>
 
-enum WMEvent { WM_EVT_NONE, WM_EVT_CONNECTED, WM_EVT_FAILED };
+// === UZUPELNIJ SWOJE DANE WIFI ===
+#define WIFI_SSID "TwojaWiFi"
+#define WIFI_PASS "TwojeHaslo"
 
-// Inicjalizacja - wywolaj raz w setup(); laduje zapisane dane i probuje auto-connect
-void wifiMgrInit();
+// Czas miedzy kolejnymi probami polaczenia gdy WiFi niedostepne (ms)
+#define WIFI_RETRY_INTERVAL_MS 30000
 
+// Minimalizuj WiFi stack - wyłącz IPv6 i zbędne cechy
+#define CONFIG_LWIP_IPV6 0
+#define CONFIG_LWIP_IPV6_AUTOCONFIG 0
+
+void   wifiMgrInit();       // wywolaj raz w setup()
+void   wifiMgrLoop();       // wywolaj w kazdym loop()
 bool   wifiMgrIsConnected();
 String wifiMgrGetIP();
-
-// Skanowanie sieci (asynchroniczne)
-void   wifiMgrScanStart();
-int    wifiMgrScanCount();      // -1 = skanowanie w toku
-String wifiMgrScanSSID(int i);
-int    wifiMgrScanRSSI(int i);
-
-// Polaczenie z haslem
-void wifiMgrConnectPassword(const char* ssid, const char* password);
-
-// Polaczenie WPS-PBC
-void wifiMgrConnectWPS();
-
-// Przerwij laczenie / WPS; czyści oczekujące zdarzenia
-void wifiMgrAbort();
-
-// Wywoluj w loop() w stanach UI_WIFI_CONNECTING / UI_WIFI_WPS
-WMEvent wifiMgrLoop();

@@ -12,6 +12,10 @@
  *   - ble_scanner.h / ble_scanner.cpp  (MAX_SENSORS=10)
  */
 
+// Minimalizuj WiFi stack - wyłącz IPv6, mDNS, zbędne funkcje
+#define CONFIG_LWIP_IPV6 0
+#define CONFIG_LWIP_IPV6_AUTOCONFIG 0
+
 #include "M5Dial.h"
 #include "ble_scanner.h"
 #include "m5dial_text_input.h"
@@ -32,15 +36,20 @@ static const SensorNameMap knownNames[MAX_SENSORS] = {
 };
 static const int knownNamesCount = sizeof(knownNames) / sizeof(knownNames[0]);
 
+// ============================================================
+// Nazwy nadane przez uzytkownika (nadpisuja lookupSensorName)
+// ============================================================
+// static char customSensorNames[MAX_SENSORS][TEXT_INPUT_MAX_LEN + 1] = {};
+
 static String lookupSensorName(const std::string& mac, int slot = -1) {
-  if (slot >= 0 && slot < MAX_SENSORS && customSensorNames[slot][0] != '\0') {
-    return String(customSensorNames[slot]);
-  }
-  for (int i = 0; i < knownNamesCount; i++) {
-    if (mac == knownNames[i].mac) {
-      return String(knownNames[i].name);
-    }
-  }
+  // if (slot >= 0 && slot < MAX_SENSORS && customSensorNames[slot][0] != '\0') {
+  //   return String(customSensorNames[slot]);
+  // }
+  // for (int i = 0; i < knownNamesCount; i++) {
+  //   if (mac == knownNames[i].mac) {
+  //     return String(knownNames[i].name);
+  //   }
+  // }
   // MAC nieznany - pokaz ostatnie 2 bajty adresu jako identyfikator
   String macStr(mac.c_str());
   int len = macStr.length();
@@ -69,34 +78,17 @@ static int  displayedSlot      = -1; // ktory slot sensors[] aktualnie pokazujem
 static unsigned long lastRedraw = 0;
 
 // ============================================================
-// Nazwy nadane przez uzytkownika (nadpisuja lookupSensorName)
-// ============================================================
-static char customSensorNames[MAX_SENSORS][TEXT_INPUT_MAX_LEN + 1] = {};
-
-// ============================================================
 // Maszyna stanow UI
 // ============================================================
 enum UIState {
-  UI_SENSOR_VIEW, UI_MENU, UI_KEYBOARD_NAME,
-  UI_WIFI_SCAN, UI_WIFI_CONNECT_MENU, UI_WIFI_PASSWORD,
-  UI_WIFI_CONNECTING, UI_WIFI_WPS
+  UI_SENSOR_VIEW, UI_MENU, UI_KEYBOARD_NAME
 };
 static UIState uiState = UI_SENSOR_VIEW;
 
-static const char* MENU_ITEMS[]   = { "Change name", "WiFi Settings" };
-static const int   MENU_ITEM_COUNT = 2;
+static const char* MENU_ITEMS[]   = { "Change name" };
+static const int   MENU_ITEM_COUNT = 1;
 static int         menuSelectedItem = 0;
 
-// WiFi scan/connect state
-static int  wifiListSelected = 0;
-static int  wifiListOffset   = 0;
-static int  wifiConnMenuSel  = 0;
-static char wifiSelectedSSID[33] = {};
-
-static const char* WIFI_CONN_ITEMS[] = { "WPS", "Wpisz haslo", "< Wstecz" };
-static const int   WIFI_CONN_COUNT   = 3;
-
-// ============================================================
 // Zwraca liste indeksow slotow, ktore maja realne dane (nie puste MAC)
 // ============================================================
 static int getActiveSlots(int* outIndices, int maxOut) {
@@ -232,124 +224,6 @@ static void drawMenu() {
 }
 
 // ============================================================
-static void drawWifiScanScreen(int scanCount) {
-  int w  = M5Dial.Display.width();
-  int h  = M5Dial.Display.height();
-  int cx = w / 2;
-  M5Dial.Display.startWrite();
-  M5Dial.Display.fillScreen(rgb565(10, 20, 40));
-  M5Dial.Display.setTextDatum(middle_center);
-
-  if (scanCount < 0) {
-    static const char* dots[] = { ".", "..", "..." };
-    M5Dial.Display.setTextColor(rgb565(180, 200, 255));
-    M5Dial.Display.setTextSize(2);
-    M5Dial.Display.drawString(String("Szukam") + dots[(millis() / 400) % 3], cx, h / 2);
-    M5Dial.Display.endWrite();
-    return;
-  }
-
-  M5Dial.Display.setTextColor(rgb565(140, 165, 200));
-  M5Dial.Display.setTextSize(1);
-  M5Dial.Display.drawString("WIFI - wybierz siec", cx, 18);
-
-  int totalItems = scanCount + 1; // ostatni element = "< Wstecz"
-  int startY = 52;
-  int itemH  = 54;
-
-  for (int vi = 0; vi < 3 && (wifiListOffset + vi) < totalItems; vi++) {
-    int  idx = wifiListOffset + vi;
-    int  y   = startY + vi * itemH;
-    bool sel = (idx == wifiListSelected);
-    if (sel) {
-      M5Dial.Display.fillRoundRect(cx - 107, y - 20, 214, 40, 5, rgb565(40, 110, 200));
-      M5Dial.Display.setTextColor(rgb565(255, 255, 255));
-    } else {
-      M5Dial.Display.setTextColor(rgb565(120, 150, 185));
-    }
-    M5Dial.Display.setTextDatum(middle_center);
-    M5Dial.Display.setTextSize(2);
-    if (idx == scanCount) {
-      M5Dial.Display.drawString("< Wstecz", cx, y);
-    } else {
-      String ssid = wifiMgrScanSSID(idx);
-      int    rssi = wifiMgrScanRSSI(idx);
-      if ((int)ssid.length() > 9) ssid = ssid.substring(0, 9);
-      const char* sig = rssi > -60 ? "|||" : rssi > -75 ? "|| " : "|  ";
-      M5Dial.Display.drawString(ssid + " " + sig, cx, y);
-    }
-  }
-
-  char pageStr[10];
-  snprintf(pageStr, sizeof(pageStr), "%d/%d", wifiListSelected + 1, totalItems);
-  M5Dial.Display.setTextColor(rgb565(70, 90, 115));
-  M5Dial.Display.setTextSize(1);
-  M5Dial.Display.setTextDatum(middle_center);
-  M5Dial.Display.drawString(pageStr, cx, 218);
-  M5Dial.Display.endWrite();
-}
-
-// ============================================================
-static void drawWifiConnectMenu() {
-  int w  = M5Dial.Display.width();
-  int h  = M5Dial.Display.height();
-  int cx = w / 2;
-  M5Dial.Display.startWrite();
-  M5Dial.Display.fillScreen(rgb565(10, 20, 40));
-  M5Dial.Display.setTextDatum(middle_center);
-
-  String label = String(wifiSelectedSSID);
-  if ((int)label.length() > 14) label = label.substring(0, 14);
-  M5Dial.Display.setTextColor(rgb565(140, 165, 200));
-  M5Dial.Display.setTextSize(1);
-  M5Dial.Display.drawString(label, cx, 20);
-
-  for (int i = 0; i < WIFI_CONN_COUNT; i++) {
-    int  y   = 68 + i * 52;
-    bool sel = (i == wifiConnMenuSel);
-    if (sel) {
-      M5Dial.Display.fillRoundRect(cx - 88, y - 15, 176, 32, 6, rgb565(40, 110, 200));
-      M5Dial.Display.setTextColor(rgb565(255, 255, 255));
-    } else {
-      M5Dial.Display.setTextColor(rgb565(130, 155, 185));
-    }
-    M5Dial.Display.setTextDatum(middle_center);
-    M5Dial.Display.setTextSize(2);
-    M5Dial.Display.drawString(WIFI_CONN_ITEMS[i], cx, y);
-  }
-  M5Dial.Display.endWrite();
-}
-
-// ============================================================
-static void drawWifiStatusScreen(const char* title, const char* subtitle) {
-  int w  = M5Dial.Display.width();
-  int h  = M5Dial.Display.height();
-  int cx = w / 2;
-
-  static const char* anim[] = { "", ".", "..", "..." };
-  const char* dot = anim[(millis() / 400) % 4];
-
-  M5Dial.Display.startWrite();
-  M5Dial.Display.fillScreen(rgb565(10, 20, 40));
-  M5Dial.Display.setTextDatum(middle_center);
-
-  M5Dial.Display.setTextColor(rgb565(255, 190, 80));
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(String(title) + dot, cx, (int)(h * 0.35));
-
-  String sub = String(subtitle);
-  if ((int)sub.length() > 11) sub = sub.substring(0, 10) + ">";
-  M5Dial.Display.setTextColor(rgb565(130, 160, 200));
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(sub, cx, (int)(h * 0.54));
-
-  M5Dial.Display.setTextColor(rgb565(70, 90, 115));
-  M5Dial.Display.setTextSize(1);
-  M5Dial.Display.drawString("kliknij = anuluj", cx, (int)(h * 0.82));
-  M5Dial.Display.endWrite();
-}
-
-// ============================================================
 void setup() {
   auto cfg = M5.config();
   M5Dial.begin(cfg, /*enableEncoder=*/true, /*enableRFID=*/false);
@@ -378,65 +252,25 @@ void setup() {
 // ============================================================
 void loop() {
   bleScanLoop();
+  wifiMgrLoop();
 
-  // --- Tryby klawiatury: M5Dial.update() wywolywane wewnatrz textInputUpdate() ---
-  if (uiState == UI_KEYBOARD_NAME || uiState == UI_WIFI_PASSWORD) {
+  // --- Klawiatura: M5Dial.update() wywolywane wewnatrz textInputUpdate() ---
+  if (uiState == UI_KEYBOARD_NAME) {
     if (textInputUpdate()) {
       const char* result = textInputGetResult();
       encoderOldPosition = M5Dial.Encoder.read();
-      if (uiState == UI_KEYBOARD_NAME) {
-        if (displayedSlot >= 0) {
-          strncpy(customSensorNames[displayedSlot], result, TEXT_INPUT_MAX_LEN);
-          customSensorNames[displayedSlot][TEXT_INPUT_MAX_LEN] = '\0';
-        }
-        uiState = UI_SENSOR_VIEW;
-        drawSensorScreen(displayedSlot);
-        lastRedraw = millis();
-      } else { // UI_WIFI_PASSWORD
-        wifiMgrConnectPassword(wifiSelectedSSID, result);
-        uiState = UI_WIFI_CONNECTING;
-        drawWifiStatusScreen("Laczenie...", wifiSelectedSSID);
-        lastRedraw = millis();
+      if (displayedSlot >= 0) {
+        // strncpy(customSensorNames[displayedSlot], result, TEXT_INPUT_MAX_LEN);
+        // customSensorNames[displayedSlot][TEXT_INPUT_MAX_LEN] = '\0';
       }
+      uiState = UI_SENSOR_VIEW;
+      drawSensorScreen(displayedSlot);
+      lastRedraw = millis();
     }
     return;
   }
 
   M5Dial.update();
-
-  // --- WiFi: zdarzenia asynchroniczne (laczenie / blad) ---
-  if (uiState == UI_WIFI_CONNECTING || uiState == UI_WIFI_WPS) {
-    WMEvent evt = wifiMgrLoop();
-    if (evt == WM_EVT_CONNECTED) {
-      uiState = UI_SENSOR_VIEW;
-      encoderOldPosition = M5Dial.Encoder.read();
-      drawSensorScreen(displayedSlot);
-      lastRedraw = millis();
-      return;
-    }
-    if (evt == WM_EVT_FAILED) {
-      uiState = UI_WIFI_CONNECT_MENU;
-      encoderOldPosition = M5Dial.Encoder.read();
-      drawWifiConnectMenu();
-      return;
-    }
-    if (M5Dial.BtnA.wasPressed()) {
-      wifiMgrAbort();
-      uiState = UI_WIFI_SCAN;
-      wifiListSelected = 0;
-      wifiListOffset   = 0;
-      encoderOldPosition = M5Dial.Encoder.read();
-      drawWifiScanScreen(wifiMgrScanCount());
-      return;
-    }
-    if (millis() - lastRedraw > 400) {
-      lastRedraw = millis();
-      const char* title = (uiState == UI_WIFI_WPS) ? "WPS" : "Laczenie...";
-      const char* sub   = (uiState == UI_WIFI_WPS) ? "guzik routera" : wifiSelectedSSID;
-      drawWifiStatusScreen(title, sub);
-    }
-    return;
-  }
 
   // --- Tryb menu ---
   if (uiState == UI_MENU) {
@@ -453,83 +287,6 @@ void loop() {
       if (menuSelectedItem == 0) {         // "Change name"
         uiState = UI_KEYBOARD_NAME;
         textInputBegin("Sensor name:");
-      } else {                             // "WiFi Settings"
-        wifiMgrScanStart();
-        wifiListSelected = 0;
-        wifiListOffset   = 0;
-        uiState = UI_WIFI_SCAN;
-        drawWifiScanScreen(-1);
-        lastRedraw = millis();
-      }
-    }
-    return;
-  }
-
-  // --- Skanowanie WiFi ---
-  if (uiState == UI_WIFI_SCAN) {
-    int  scanCount = wifiMgrScanCount();
-    bool needRedraw = false;
-    long newPosition = M5Dial.Encoder.read();
-
-    if (newPosition != encoderOldPosition && scanCount >= 0) {
-      int step  = (newPosition > encoderOldPosition) ? 1 : -1;
-      encoderOldPosition = newPosition;
-      int total = scanCount + 1;
-      wifiListSelected = constrain(wifiListSelected + step, 0, total - 1);
-      if (wifiListSelected < wifiListOffset)      wifiListOffset = wifiListSelected;
-      if (wifiListSelected >= wifiListOffset + 3) wifiListOffset = wifiListSelected - 2;
-      M5Dial.Speaker.tone(3500, 10);
-      needRedraw = true;
-    }
-
-    if (M5Dial.BtnA.wasPressed() && scanCount >= 0) {
-      encoderOldPosition = M5Dial.Encoder.read();
-      if (wifiListSelected == scanCount) {  // "< Wstecz"
-        uiState = UI_SENSOR_VIEW;
-        drawSensorScreen(displayedSlot);
-        lastRedraw = millis();
-      } else {
-        String ssid = wifiMgrScanSSID(wifiListSelected);
-        strncpy(wifiSelectedSSID, ssid.c_str(), sizeof(wifiSelectedSSID) - 1);
-        wifiSelectedSSID[sizeof(wifiSelectedSSID) - 1] = '\0';
-        wifiConnMenuSel = 0;
-        uiState = UI_WIFI_CONNECT_MENU;
-        drawWifiConnectMenu();
-      }
-      return;
-    }
-
-    if (needRedraw || millis() - lastRedraw > 500) {
-      lastRedraw = millis();
-      drawWifiScanScreen(scanCount);
-    }
-    return;
-  }
-
-  // --- Podmenu polaczenia WiFi ---
-  if (uiState == UI_WIFI_CONNECT_MENU) {
-    long newPosition = M5Dial.Encoder.read();
-    if (newPosition != encoderOldPosition) {
-      int step = (newPosition > encoderOldPosition) ? 1 : -1;
-      encoderOldPosition = newPosition;
-      wifiConnMenuSel = (wifiConnMenuSel + step + WIFI_CONN_COUNT) % WIFI_CONN_COUNT;
-      M5Dial.Speaker.tone(3500, 10);
-      drawWifiConnectMenu();
-    }
-    if (M5Dial.BtnA.wasPressed()) {
-      encoderOldPosition = M5Dial.Encoder.read();
-      if (wifiConnMenuSel == 0) {        // WPS-PBC
-        wifiMgrConnectWPS();
-        uiState = UI_WIFI_WPS;
-        drawWifiStatusScreen("WPS", "guzik routera");
-        lastRedraw = millis();
-      } else if (wifiConnMenuSel == 1) { // Wpisz haslo
-        uiState = UI_WIFI_PASSWORD;
-        textInputBegin("Haslo WiFi:");
-      } else {                           // < Wstecz
-        uiState = UI_WIFI_SCAN;
-        drawWifiScanScreen(wifiMgrScanCount());
-        lastRedraw = millis();
       }
     }
     return;

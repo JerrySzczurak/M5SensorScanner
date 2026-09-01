@@ -1,5 +1,7 @@
 #include "ble_scanner.h"
 
+//#define DEBUG_ENABLED
+
 // ============================================================
 // Konfiguracja filtra
 // ============================================================
@@ -138,22 +140,28 @@ class ScanCallbacks : public NimBLEScanCallbacks {
 
     SensorReading parsed;
     if (!parsePayload(payload, payloadLen, parsed)) {
+#ifdef DEBUG_ENABLED
       Serial.println("[BLE] Odrzucono pakiet - nieprawidlowa dlugosc payloadu");
-      return;
+#endif
+      //return;
     }
 
     std::string mac = device->getAddress().toString();
 
     // --- 4. Sekcja krytyczna: dostep do wspoldzielonej tablicy sensors[] ---
     if (xSemaphoreTake(sensorsMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+#ifdef DEBUG_ENABLED
       Serial.println("[BLE] Nie udalo sie pobrac mutexa - pomijam pakiet");
+#endif
       return;
     }
 
     int slot = findSlot(mac);
     if (slot < 0) {
+#ifdef DEBUG_ENABLED
       Serial.printf("[BLE] Brak wolnego slotu dla nowego sensora %s (limit %d)\n",
                     mac.c_str(), MAX_SENSORS);
+#endif
       xSemaphoreGive(sensorsMutex);
       return;
     }
@@ -175,10 +183,12 @@ class ScanCallbacks : public NimBLEScanCallbacks {
     sensors[slot].humidity       = parsed.humidity;
     sensors[slot].lastUpdate     = millis();
 
+#ifdef DEBUG_ENABLED
     Serial.printf("[BLE] slot=%d mac=%s txid=%u bat=%u%% T=%.1fC P=%.0fhPa H=%.0f%%\n",
                   slot, mac.c_str(), sensors[slot].transaction_id,
                   sensors[slot].battery_level, sensors[slot].temperature,
                   sensors[slot].pressure, sensors[slot].humidity);
+#endif
 
     xSemaphoreGive(sensorsMutex);
 
@@ -212,8 +222,10 @@ void bleScanInit() {
 
   pScan->start(0, false); // 0 = skanuj w nieskonczonosc, nieblokujaco
 
+#ifdef DEBUG_ENABLED
   Serial.printf("[BLE] Skaner uruchomiony, szukam urzadzen \"%s\" (company ID 0x%04X)\n",
                 TARGET_DEVICE_NAME, TARGET_COMPANY_ID);
+#endif
 }
 
 // ============================================================
@@ -226,7 +238,9 @@ void bleScanLoop() {
   // (np. chwilowy konflikt z WiFi na wspoldzielonym radiu 2.4GHz,
   // albo host BLE zrobil reset i wywolal onScanEnd) - wznow je.
   if (!pScan->isScanning()) {
-    Serial.println("[BLE] Skanowanie nieaktywne - wznawiam");
+#ifdef DEBUG_ENABLED
+   Serial.println("[BLE] Skanowanie nieaktywne - wznawiam");
+#endif
     pScan->start(0, false);
   }
 }
