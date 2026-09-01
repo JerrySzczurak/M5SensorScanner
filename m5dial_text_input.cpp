@@ -1,6 +1,7 @@
 #include "m5dial_text_input.h"
 #include "M5Dial.h"
 
+extern M5Canvas canvas;
 // ============================================================
 // Zestawy znakow na pierscieniu. Kazdy element to krotki string
 // (1-3 znaki), bo M5Dial ma tylko okragly ekran 1.28" - miejsce jest
@@ -14,7 +15,7 @@
 static const char* ALNUM_ITEMS[] = {
   "a","b","c","d","e","f","g","h","i","j","k","l","m",
   "n","o","p","q","r","s","t","u","v","w","x","y","z",
-  "0","1","2","3","4","5","6","7","8","9",
+  /*"0","1","2","3","4","5","6","7","8","9",*/
   "^", "DEL", "#", "OK"   // SHIFT, BACKSPACE, przelacznik symboli, potwierdz
 };
 static const int ALNUM_COUNT = sizeof(ALNUM_ITEMS) / sizeof(ALNUM_ITEMS[0]);
@@ -24,8 +25,9 @@ static const int ALNUM_COUNT = sizeof(ALNUM_ITEMS) / sizeof(ALNUM_ITEMS[0]);
 #define ALNUM_OK_IDX     (ALNUM_COUNT - 1)
 
 static const char* SYMBOL_ITEMS[] = {
-  "!","@","#","$","%","^","&","*","(",")",
-  "-","_","+","=",".",",","?","/",":",";","'","\"",
+  "0","1","2","3","4","5","6","7","8","9",
+  "!","@","#","$","%","^","&","*",
+  "-","_",".",",","/",":",";","'","\"",
   "ABC", "DEL", "OK"      // powrot do liter, backspace, potwierdz
 };
 static const int SYMBOL_COUNT = sizeof(SYMBOL_ITEMS) / sizeof(SYMBOL_ITEMS[0]);
@@ -33,7 +35,8 @@ static const int SYMBOL_COUNT = sizeof(SYMBOL_ITEMS) / sizeof(SYMBOL_ITEMS[0]);
 #define SYMBOL_DEL_IDX  (SYMBOL_COUNT - 2)
 #define SYMBOL_OK_IDX   (SYMBOL_COUNT - 1)
 
-enum RingMode { MODE_ALNUM, MODE_SYMBOLS };
+enum RingMode { MODE_ALNUM, MODE_SYMBOLS};
+
 
 // ============================================================
 // Stan modulu
@@ -93,8 +96,9 @@ static void drawScreen() {
   int cy = h / 2;
   int radius = (min(w, h) / 2) - 20;
 
-  M5Dial.Display.startWrite();
-  M5Dial.Display.fillScreen(COL_BG);
+  //M5Dial.Display.startWrite();
+  //M5Dial.Display.fillScreen(COL_BG);
+  canvas.fillScreen(COL_BG);
 
   int count = currentCount();
   float angleStep = 2.0f * PI / count;
@@ -108,21 +112,21 @@ static void drawScreen() {
     bool isSelected = (i == selectedIndex);
     const char* item = currentItem(i);
 
-    M5Dial.Display.setTextDatum(middle_center);
+    canvas.setTextDatum(middle_center);
     if (isSelected) {
-      M5Dial.Display.fillCircle(x, y, 15, COL_HILITE_BG);
-      M5Dial.Display.setTextColor(COL_HILITE_FG);
-      M5Dial.Display.setTextSize(2);
+      canvas.fillCircle(x, y, 15, COL_HILITE_BG);
+      canvas.setTextColor(COL_HILITE_FG);
+      canvas.setTextSize(2);
     } else {
-      M5Dial.Display.setTextColor(COL_DIM);
-      M5Dial.Display.setTextSize(1);
+      canvas.setTextColor(COL_DIM);
+      canvas.setTextSize(1);
     }
 
     if (ringMode == MODE_ALNUM && i < 26) {
       char shown[2] = { resolveChar(item), '\0' };
-      M5Dial.Display.drawString(shown, x, y);
+      canvas.drawString(shown, x, y);
     } else {
-      M5Dial.Display.drawString(item, x, y);
+      canvas.drawString(item, x, y);
     }
   }
 
@@ -136,15 +140,15 @@ static void drawScreen() {
     strncpy(previewBuf, selItem, sizeof(previewBuf) - 1);
     previewBuf[sizeof(previewBuf) - 1] = '\0';
   }
-  M5Dial.Display.setTextDatum(middle_center);
-  M5Dial.Display.setTextColor(COL_PREVIEW);
-  M5Dial.Display.setTextSize(4);
-  M5Dial.Display.drawString(previewBuf, cx, cy - 25);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextColor(COL_PREVIEW);
+  canvas.setTextSize(4);
+  canvas.drawString(previewBuf, cx, cy - 25);
 
   // --- Prompt ---
-  M5Dial.Display.setTextColor(COL_PROMPT);
-  M5Dial.Display.setTextSize(1);
-  M5Dial.Display.drawString(promptText, cx, cy + 5);
+  canvas.setTextColor(COL_PROMPT);
+  canvas.setTextSize(1);
+  canvas.drawString(promptText, cx, cy + 5);
 
   // --- Wpisany dotychczas tekst (ostatnie znaki jesli za dlugi) ---
   const char* visible = textBuffer;
@@ -152,15 +156,15 @@ static void drawScreen() {
   if (textLen > maxVisibleChars) {
     visible = textBuffer + (textLen - maxVisibleChars);
   }
-  M5Dial.Display.setTextColor(COL_TEXT);
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(visible, cx, cy + 25);
+  canvas.setTextColor(COL_TEXT);
+  canvas.setTextSize(2);
+  canvas.drawString(visible, cx, cy + 25);
   if (textLen == 0) {
-    M5Dial.Display.setTextColor(COL_DIM);
-    M5Dial.Display.drawString("(pusty)", cx, cy + 25);
+    canvas.setTextColor(COL_DIM);
+    canvas.drawString("(pusty)", cx, cy + 25);
   }
-
-  M5Dial.Display.endWrite();
+  canvas.pushSprite(0, 0);
+  //M5Dial.Display.endWrite();
 }
 
 // ============================================================

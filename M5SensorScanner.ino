@@ -36,6 +36,7 @@ static const SensorNameMap knownNames[MAX_SENSORS] = {
 };
 static const int knownNamesCount = sizeof(knownNames) / sizeof(knownNames[0]);
 
+M5Canvas canvas(&M5Dial.Display);
 // ============================================================
 // Nazwy nadane przez uzytkownika (nadpisuja lookupSensorName)
 // ============================================================
@@ -105,92 +106,84 @@ static int getActiveSlots(int* outIndices, int maxOut) {
 // ============================================================
 // Rysuje symbol stopnia (kolko) + litere C
 // ============================================================
-static void drawDegreeC(int16_t x, int16_t y, uint16_t color) {
-  M5Dial.Display.drawCircle(x + 5, y + 5, 5, color);
-  M5Dial.Display.setTextDatum(top_left);
-  M5Dial.Display.setTextColor(color);
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString("C", x + 14, y);
+static void drawDegreeC(M5Canvas &c, int16_t x, int16_t y, uint16_t color) {
+  c.drawCircle(x + 5, y + 5, 5, color);
+  c.setTextDatum(top_left);
+  c.setTextColor(color);
+  c.setTextSize(2);
+  c.drawString("C", x + 14, y);
 }
 
 // ============================================================
 // Rysuje caly ekran dla danego slotu sensora
 // ============================================================
 static void drawSensorScreen(int slot) {
-  SensorReading r;
+ SensorReading r;
   int w = M5Dial.Display.width();
   int h = M5Dial.Display.height();
   int cx = w / 2;
 
-  M5Dial.Display.startWrite();
-  M5Dial.Display.fillScreen(COL_BG);
+  canvas.fillScreen(COL_BG);
 
   if (slot < 0 || !getSensorReading((uint8_t)slot, r)) {
-    // Brak jakichkolwiek danych - komunikat na srodku
-    M5Dial.Display.setTextDatum(middle_center);
-    M5Dial.Display.setTextColor(COL_TEXT);
-    M5Dial.Display.setTextSize(2);
-    M5Dial.Display.drawString("Searching...", cx, h / 2);
-    M5Dial.Display.endWrite();
+    canvas.setTextDatum(middle_center);
+    canvas.setTextColor(COL_TEXT);
+    canvas.setTextSize(2);
+    canvas.drawString("Searching...", cx, h / 2);
+    canvas.pushSprite(0, 0);
     return;
   }
 
   String name = lookupSensorName(r.mac_address, slot);
 
-  // --- Nazwa sensora (gora) ---
-  M5Dial.Display.setTextDatum(middle_center);
-  M5Dial.Display.setTextColor(COL_NAME);
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(name, cx, h * 0.16);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextColor(COL_NAME);
+  canvas.setTextSize(2);
+  canvas.drawString(name, cx, h * 0.16);
 
-  // --- Temperatura (duza, magenta) ---
   char tempStr[8];
   snprintf(tempStr, sizeof(tempStr), "%.0f", r.temperature);
-  M5Dial.Display.setTextColor(COL_TEMP);
-  M5Dial.Display.setTextSize(5);
-  M5Dial.Display.setTextDatum(middle_right);
+  canvas.setTextColor(COL_TEMP);
+  canvas.setTextSize(5);
+  canvas.setTextDatum(middle_right);
   int tempX = cx + 10;
   int tempY = h * 0.38;
-  M5Dial.Display.drawString(tempStr, tempX, tempY);
-  // stopien + C rysowane recznie po prawej stronie liczby
-  drawDegreeC(tempX + 6, tempY - 20, COL_TEMP);
+  canvas.drawString(tempStr, tempX, tempY);
+  drawDegreeC(canvas, tempX + 6, tempY - 20, COL_TEMP);
 
-  // --- Cisnienie (czarne) ---
   char pressStr[16];
   snprintf(pressStr, sizeof(pressStr), "%.0f hPa", r.pressure);
-  M5Dial.Display.setTextDatum(middle_center);
-  M5Dial.Display.setTextColor(COL_TEXT);
-  M5Dial.Display.setTextSize(3);
-  M5Dial.Display.drawString(pressStr, cx, h * 0.56);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextColor(COL_TEXT);
+  canvas.setTextSize(3);
+  canvas.drawString(pressStr, cx, h * 0.56);
 
-  // --- Wilgotnosc (czarne, mniejsze) ---
   char humStr[8];
   snprintf(humStr, sizeof(humStr), "%.0f%%", r.humidity);
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(humStr, cx, h * 0.68);
+  canvas.setTextSize(2);
+  canvas.drawString(humStr, cx, h * 0.68);
 
-  // --- Dolny pasek: godzina + data ---
   int bandH = h * 0.24;
   int bandY = h - bandH;
-  M5Dial.Display.fillRect(0, bandY, w, bandH, COL_BAND);
+  canvas.fillRect(0, bandY, w, bandH, COL_BAND);
 
-  auto dt = M5Dial.Rtc.getDateTime(); // BM8563 RTC wbudowany w M5Dial
+  auto dt = M5Dial.Rtc.getDateTime();
 
   char timeStr[6];
   snprintf(timeStr, sizeof(timeStr), "%02d:%02d", dt.time.hours, dt.time.minutes);
   char dateStr[11];
-  snprintf(dateStr, sizeof(dateStr), "%02d/%02d/%04d",
-           dt.date.date, dt.date.month, dt.date.year);
+  snprintf(dateStr, sizeof(dateStr), "%02d/%02d/%02d",
+           dt.date.date, dt.date.month, dt.date.year-2000);
 
-  M5Dial.Display.setTextDatum(middle_center);
-  M5Dial.Display.setTextColor(COL_BANDTEXT);
-  M5Dial.Display.setTextSize(3);
-  M5Dial.Display.drawString(timeStr, cx, bandY + bandH * 0.38);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextColor(COL_BANDTEXT);
+  canvas.setTextSize(3);
+  canvas.drawString(timeStr, cx, bandY + bandH * 0.33);
 
-  M5Dial.Display.setTextSize(2);
-  M5Dial.Display.drawString(dateStr, cx, bandY + bandH * 0.75);
+  canvas.setTextSize(2);
+  canvas.drawString(dateStr, cx, bandY + bandH * 0.70);
 
-  M5Dial.Display.endWrite();
+  canvas.pushSprite(0, 0);   // <-- JEDEN transfer całego gotowego kadru na ekran
 }
 
 // ============================================================
@@ -227,16 +220,16 @@ static void drawMenu() {
 void setup() {
   auto cfg = M5.config();
   M5Dial.begin(cfg, /*enableEncoder=*/true, /*enableRFID=*/false);
-
+  canvas.createSprite(M5Dial.Display.width(), M5Dial.Display.height());
   Serial.begin(115200);
 
   // UWAGA: jesli RTC nie byl wczesniej ustawiony (pierwsze uruchomienie
   // plytki), dt.time/dt.date beda zerowe. Odkomentuj i ustaw raz recznie:
   //
   // m5::rtc_date_t initDate;
-  // initDate.year = 2027; initDate.month = 1; initDate.date = 17; initDate.weekDay = 0;
+  // initDate.year = 2026; initDate.month = 9; initDate.date = 1; initDate.weekDay = 1;
   // m5::rtc_time_t initTime;
-  // initTime.hours = 12; initTime.minutes = 45; initTime.seconds = 0;
+  // initTime.hours = 14; initTime.minutes = 18; initTime.seconds = 0;
   // M5Dial.Rtc.setDate(&initDate);
   // M5Dial.Rtc.setTime(&initTime);
   //
