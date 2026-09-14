@@ -5,8 +5,8 @@
 // ============================================================
 // Konfiguracja filtra
 // ============================================================
-static const uint16_t TARGET_COMPANY_ID  = 0xF0FF;
-static const char*    TARGET_DEVICE_NAME = "grip chip";
+static const char*    TARGET_DEVICE_NAME = "TempSensor";
+static const uint16_t BTHOME_UUID = 0xFCD2;  /* BTHome v2 Service Data UUID */
 
 // ============================================================
 // Parametry skanowania (jednostki: ms - NimBLE-Arduino v2.x
@@ -115,28 +115,28 @@ class ScanCallbacks : public NimBLEScanCallbacks {
   void onResult(const NimBLEAdvertisedDevice* device) override {
 
     // --- 1. Filtr po nazwie urzadzenia ---
-    if (!device->haveName() || device->getName() != TARGET_DEVICE_NAME) {
+    // if (!device->haveName() || device->getName() != TARGET_DEVICE_NAME) {
+    //   std::string dta = device->getName();
+    //   Serial.printf("[BLE] Odrzucono pakiet - %s \r\n", dta);
+    //   return;
+    // }
+
+    // --- 2. Filtr po Service Data UUID (BTHome v2: 0xFCD2) ---
+    // if (!device->isAdvertisingService(NimBLEUUID(BTHOME_UUID))) {
+    //   Serial.println("[BLE] Nie zgadza się UUID?");
+    //   return;
+    // }
+
+    // Pobranie Service Data dla UUID 0xFCD2
+    std::string svcData = device->getServiceData(NimBLEUUID(BTHOME_UUID));
+    if (svcData.length() < 1) {
       return;
     }
 
-    // --- 2. Filtr po Company ID w Manufacturer Specific Data ---
-    if (!device->haveManufacturerData()) {
-      return;
-    }
-
-    std::string mfgData = device->getManufacturerData();
-    if (mfgData.length() < 2) {
-      return;
-    }
-
-    uint16_t companyId = (uint8_t)mfgData[0] | ((uint8_t)mfgData[1] << 8);
-    if (companyId != TARGET_COMPANY_ID) {
-      return;
-    }
-
-    // --- 3. Parsowanie payloadu (wszystko po 2 bajtach company ID) ---
-    const uint8_t* payload    = (const uint8_t*)mfgData.data() + 2;
-    size_t         payloadLen = mfgData.length() - 2;
+    // --- 3. Parsowanie payloadu (Service Data: [UUID_LO][UUID_HI][DEVICE_INFO][obiekty...]) ---
+    // Pomiń 2 bajty UUID na początku Service Data
+    const uint8_t* payload    = (const uint8_t*)svcData.data() + 2;
+    size_t         payloadLen = svcData.length() - 2;
 
     SensorReading parsed;
     if (!parsePayload(payload, payloadLen, parsed)) {
