@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
+#include "M5Dial.h"
 
 // ============================================================
 // BTHome v2 Object ID's (z bthome.io/format)
@@ -22,7 +23,7 @@ struct SensorReading {
   float         temperature = 0;
   float         pressure = 0;
   float         humidity;
-  unsigned long lastUpdate = 0;
+  unsigned long lastUpdate;
 };
 
 #define MAX_SENSORS 10

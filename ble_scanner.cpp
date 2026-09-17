@@ -1,5 +1,6 @@
 #include "ble_scanner.h"
 
+
 //#define DEBUG_ENABLED
 
 // ============================================================
@@ -41,6 +42,16 @@ static bool parsePayload(const uint8_t* data, size_t len, SensorReading& out) {
 
   uint8_t pos = 0;
   
+#if defined(DEBUG_ENABLED)
+  std::string hexData;
+  for (size_t i = 0; i < len; i++) {
+    if (i > 0) hexData += ",";
+    char buf[5];
+    snprintf(buf, sizeof(buf), "0x%02X", data[i]);
+    hexData += buf;
+  }
+  Serial.println(hexData.c_str());
+#endif
   // [0] DEVICE_INFO byte
   uint8_t device_info = data[pos++];
   (void)device_info; // unused for now
@@ -52,7 +63,7 @@ static bool parsePayload(const uint8_t* data, size_t len, SensorReading& out) {
     if (obj_id == BTHOME_OBJ_PACKET_ID) {
       // [pos]: packet_id (uint8)
       if (pos + 0 >= len) return false;
-      out.transaction_id = (uint16_t)data[pos++];
+      out.transaction_id = (uint8_t)data[pos++];
     } 
     else if (obj_id == BTHOME_OBJ_BATTERY) {
       // [pos]: battery_level (uint8)
@@ -121,7 +132,7 @@ class ScanCallbacks : public NimBLEScanCallbacks {
     //   return;
     // }
 
-    // --- 2. Filtr po Service Data UUID (BTHome v2: 0xFCD2) ---
+    //--- 2. Filtr po Service Data UUID (BTHome v2: 0xFCD2) ---
     // if (!device->isAdvertisingService(NimBLEUUID(BTHOME_UUID))) {
     //   Serial.println("[BLE] Nie zgadza się UUID?");
     //   return;
@@ -133,10 +144,10 @@ class ScanCallbacks : public NimBLEScanCallbacks {
       return;
     }
 
-    // --- 3. Parsowanie payloadu (Service Data: [UUID_LO][UUID_HI][DEVICE_INFO][obiekty...]) ---
-    // Pomiń 2 bajty UUID na początku Service Data
-    const uint8_t* payload    = (const uint8_t*)svcData.data() + 2;
-    size_t         payloadLen = svcData.length() - 2;
+    // --- 3. Parsowanie payloadu (getServiceData już zwraca dane BEZ UUID)
+    // Service Data format: [DEVICE_INFO][obiekty...]
+    const uint8_t* payload    = (const uint8_t*)svcData.data();
+    size_t         payloadLen = svcData.length();
 
     SensorReading parsed;
     if (!parsePayload(payload, payloadLen, parsed)) {
@@ -172,6 +183,9 @@ class ScanCallbacks : public NimBLEScanCallbacks {
     if (sensors[slot].mac_address == mac &&
         sensors[slot].transaction_id == parsed.transaction_id) {
       xSemaphoreGive(sensorsMutex);
+#ifdef DEBUG_ENABLED
+      Serial.printf("[BLE] Ponowienie pakietu.\n");
+#endif      
       return;
     }
 
@@ -224,7 +238,7 @@ void bleScanInit() {
 
 #ifdef DEBUG_ENABLED
   Serial.printf("[BLE] Skaner uruchomiony, szukam urzadzen \"%s\" (company ID 0x%04X)\n",
-                TARGET_DEVICE_NAME, TARGET_COMPANY_ID);
+                TARGET_DEVICE_NAME, BTHOME_UUID);
 #endif
 }
 
