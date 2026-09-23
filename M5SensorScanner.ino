@@ -194,12 +194,12 @@ static void drawSensorScreen(int slot) {
   tempX = cx + 50;
   char batteryStr[8];
   snprintf(batteryStr, sizeof(batteryStr), "%d%%", r.battery_level);
-  canvas.setTextColor(getBatteryColor(r.battery_level));
+  canvas.setTextColor(COL_TEXT);//getBatteryColor(r.battery_level));
   canvas.setTextSize(2);
   canvas.drawString(batteryStr, tempX, h * 0.68);
 
   //Rysowanie ikonki baterii. X = 20, Y = (Height/2)-20, szerokość 20, wyskokość 40.
-  drawBatteryIcon(canvas, 20, (h / 2) - 20, 20, 40, r.battery_level);
+  drawBatteryIcon(canvas, 20, (h / 2) - 50, 20, 40, r.battery_level);
 
 
   int bandH = h * 0.24;
@@ -285,7 +285,7 @@ uint16_t getBatteryColor(uint8_t percent) {
 
 //Funkcja tworzy canvas który wyświetla iknokę baterii z odpowienim kolorem w zależności od poziomu naładowania. 
 //Ikonka baterii jest pionowa i ma też cyfrową reprezentację procentowego poziomu naładowania.
-void drawBatteryIcon(Adafruit_GFX& canvas, int x, int y, int width, int height, uint8_t batteryLevel) {
+void drawBatteryIcon(M5Canvas& canvas, int x, int y, int width, int height, uint8_t batteryLevel) {
   uint16_t color = getBatteryColor(batteryLevel);
   
   // Rysowanie obramowania baterii
@@ -403,6 +403,7 @@ void syncTimeFromNTP() {
 void setup() {
   auto cfg = M5.config();
   M5Dial.begin(cfg, /*enableEncoder=*/true, /*enableRFID=*/false);
+  M5.Display.setBrightness(25);
   canvas.createSprite(M5Dial.Display.width(), M5Dial.Display.height());
   Serial.begin(115200);
 
