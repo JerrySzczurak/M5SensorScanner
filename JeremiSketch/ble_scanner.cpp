@@ -1,6 +1,6 @@
 #include "ble_scanner.h"
 
-// #define DEBUG_ENABLED
+#define DEBUG_ENABLED
 
 // ============================================================
 // BTHome v2 Service Data UUID
@@ -91,7 +91,6 @@ static int findSlot(const std::string& mac) {
 // ============================================================
 class ScanCallbacks : public NimBLEScanCallbacks {
   void onResult(const NimBLEAdvertisedDevice* device) override {
-
     // Pobranie Service Data dla UUID 0xFCD2 (BTHome v2)
     std::string svcData = device->getServiceData(NimBLEUUID(BTHOME_UUID));
     if (svcData.length() < 1) return;
@@ -182,7 +181,9 @@ void bleScanLoop() {
   // (np. chwilowy konflikt z WiFi na wspoldzielonym radiu 2.4GHz,
   // albo host BLE zrobil reset i wywolal onScanEnd) - wznow je.
   if (!pScan->isScanning()) {
+#ifdef DEBUG_ENABLED
     Serial.println("[BLE] Skanowanie nieaktywne - wznawiam");
+#endif
     pScan->start(0, false);
   }
 }
