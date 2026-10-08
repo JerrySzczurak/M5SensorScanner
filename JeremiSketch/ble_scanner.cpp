@@ -11,8 +11,8 @@ static const uint16_t BTHOME_UUID = 0xFCD2;
 // Parametry skanowania (jednostki: ms - NimBLE-Arduino v2.x
 // przyjmuje setInterval/setWindow bezposrednio w ms)
 // ============================================================
-static const uint16_t SCAN_INTERVAL_MS = 100;
-static const uint16_t SCAN_WINDOW_MS   = 100;
+static const uint16_t SCAN_INTERVAL_MS = 500;
+static const uint16_t SCAN_WINDOW_MS   = 200;
 static const bool     SCAN_ACTIVE      = false; // pasywne - my tylko sluchamy adv,
                                                   // nie potrzebujemy scan response
 
