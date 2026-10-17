@@ -4,6 +4,10 @@
 #include <NimBLEDevice.h>
 #include "M5Dial.h"
 
+extern const uint16_t SCAN_INTERVAL_MS;
+extern const uint16_t SCAN_WINDOW_MS;
+
+
 // ============================================================
 // BTHome v2 Object ID's (z bthome.io/format)
 // ============================================================
@@ -26,7 +30,17 @@ struct SensorReading {
   unsigned long lastUpdate;
 };
 
+struct SensorNameMap {
+  const char* mac;
+  const char* name;
+};
+
 #define MAX_SENSORS 10
+
+
+extern const SensorNameMap knownNames[];
+extern const int knownNamesCount;
+
 
 // Tablica odczytow - dostepna globalnie do odczytu przez UI/WiFi.
 // UWAGA: dostep z innego zadania/petli niz callback BLE powinien

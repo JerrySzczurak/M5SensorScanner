@@ -113,7 +113,7 @@ void setup() {
   digitalWrite(LCD_BLK, HIGH);
 
   // BLE + WiFi PRZED tft.init() - GPIO2 jest zarazem LCD_DC i pin bootstrapping ESP32
-  wifiMgrInit();
+  bleScanInit();
 
   // Czekaj chwile na polaczenie WiFi przed NTP
   unsigned long wifiWait = millis();
@@ -121,7 +121,8 @@ void setup() {
     delay(200);
   }
 //  syncTimeFromNTP();
-  bleScanInit();
+  wifiMgrInit();
+
   
   tft.init(SCREEN_W, SCREEN_H);
   tft.setRotation(2);

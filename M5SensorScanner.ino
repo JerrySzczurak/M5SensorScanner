@@ -27,19 +27,7 @@
 // UZUPELNIJ realnymi adresami MAC swoich sensorow ISP1907-LL.
 // Format MAC z NimBLE: male litery, dwukropki, np. "aa:bb:cc:dd:ee:01"
 // ============================================================
-struct SensorNameMap {
-  const char* mac;
-  const char* name;
-};
 
-static const SensorNameMap knownNames[MAX_SENSORS] = {
-  {"e1:62:7c:ae:71:40", "Gora"},
-  {"db:cb:7d:51:9a:c5", "Kuchnia"},
-  {"d8:55:70:b6:26:5e", "Dol"},
-  {"fe:73:39:8c:2c:cd", "Dwor"}
-  // dodaj kolejne w miare potrzeb (max 10 wynika z MAX_SENSORS w ble_scanner.h)
-};
-static const int knownNamesCount = sizeof(knownNames) / sizeof(knownNames[0]);
 
 M5Canvas canvas(&M5Dial.Display);
 // ============================================================
@@ -156,7 +144,7 @@ static void drawSensorScreen(int slot) {
     canvas.setTextColor(COL_NAME);
     canvas.setTextSize(2);
     canvas.drawString(name, cx, h * 0.16);
-  if (timeSinceUpdate > 180000) {  // > 3 minuty bez aktualizacji
+  if (timeSinceUpdate > 480000) {  // > 8 minuty bez aktualizacji
     // sensor się nie odzywa - pokaż ostrzeżenie
     canvas.setTextDatum(middle_center);
     canvas.setTextColor(COL_TEMP);
@@ -399,6 +387,8 @@ void syncTimeFromNTP() {
   }
 }
 
+int checkActiveSensorsTimeout = 0;
+
 // ============================================================
 void setup() {
   auto cfg = M5.config();
@@ -418,8 +408,8 @@ void setup() {
   M5Dial.Rtc.setTime(&initTime);
   //
   // Docelowo zastapimy to synchronizacja NTP po dodaniu WiFi.
-
   bleScanInit();
+  delay(2000);
   wifiMgrInit();
   syncTimeFromNTP();
 
@@ -427,59 +417,111 @@ void setup() {
   encoderOldPosition = M5Dial.Encoder.read();
 }
 
+static int timer_to_sleep = 0;
+static bool screen_on = true;
+static bool night_time = false;
 // ============================================================
 void loop() {
+  // auto dt = M5Dial.Rtc.getDateTime();
+  // if (dt.time.hours>19 || dt.time.hours < 6)
+  // {
+  //   night_time = true;
+  //   if (screen_on)
+  //   {
+  //     if (timer_to_sleep == 0)
+  //     {
+  //       //30 seconds at start
+  //       Serial.println("Going into sleep mode");
+  //       timer_to_sleep = millis() + 30000;
+  //     }
+
+  //     if (timer_to_sleep < millis())
+  //     {
+  //       //Turn the light off.
+  //       Serial.println("Turning light off");
+  //       M5.Display.setBrightness(0);        
+  //       screen_on = false;
+  //     }
+  //   }
+  // }
+  // else
+  // {
+  //   night_time = false;
+  //   if (!screen_on)
+  //   {
+  //     screen_on = true;
+  //     M5.Display.setBrightness(25);        
+  //   }
+  // }
+  // else 
+  // {
+  //   Serial.printf("!");
+  // }
+
   bleScanLoop();
-  wifiMgrLoop();
 
   // --- Klawiatura: M5Dial.update() wywolywane wewnatrz textInputUpdate() ---
-  if (uiState == UI_KEYBOARD_NAME) {
-    if (textInputUpdate()) {
-      const char* result = textInputGetResult();
-      encoderOldPosition = M5Dial.Encoder.read();
-      if (displayedSlot >= 0) {
-        // strncpy(customSensorNames[displayedSlot], result, TEXT_INPUT_MAX_LEN);
-        // customSensorNames[displayedSlot][TEXT_INPUT_MAX_LEN] = '\0';
-      }
-      uiState = UI_SENSOR_VIEW;
-      drawSensorScreen(displayedSlot);
-      lastRedraw = millis();
-    }
-    return;
-  }
+  // if (uiState == UI_KEYBOARD_NAME) {
+  //   if (textInputUpdate()) {
+  //     const char* result = textInputGetResult();
+  //     encoderOldPosition = M5Dial.Encoder.read();
+  //     if (displayedSlot >= 0) {
+  //       // strncpy(customSensorNames[displayedSlot], result, TEXT_INPUT_MAX_LEN);
+  //       // customSensorNames[displayedSlot][TEXT_INPUT_MAX_LEN] = '\0';
+  //     }
+  //     uiState = UI_SENSOR_VIEW;
+  //     drawSensorScreen(displayedSlot);
+  //     lastRedraw = millis();
+  //   }
+  //   return;
+  // }
 
   M5Dial.update();
+  wifiMgrLoop();
 
   // --- Tryb menu ---
-  if (uiState == UI_MENU) {
-    long newPosition = M5Dial.Encoder.read();
-    if (newPosition != encoderOldPosition) {
-      int step = (newPosition > encoderOldPosition) ? 1 : -1;
-      encoderOldPosition = newPosition;
-      menuSelectedItem = (menuSelectedItem + step + MENU_ITEM_COUNT) % MENU_ITEM_COUNT;
-      M5Dial.Speaker.tone(3500, 10);
-      drawMenu();
-    }
-    if (M5Dial.BtnA.wasPressed()) {
-      encoderOldPosition = M5Dial.Encoder.read();
-      if (menuSelectedItem == 0) {         // "Change name"
-        uiState = UI_KEYBOARD_NAME;
-        textInputBegin("Sensor name:");
-      }
-    }
-    return;
-  }
+  // if (uiState == UI_MENU) {
+  //   long newPosition = M5Dial.Encoder.read();
+  //   if (newPosition != encoderOldPosition) {
+  //     int step = (newPosition > encoderOldPosition) ? 1 : -1;
+  //     encoderOldPosition = newPosition;
+  //     menuSelectedItem = (menuSelectedItem + step + MENU_ITEM_COUNT) % MENU_ITEM_COUNT;
+  //     M5Dial.Speaker.tone(3500, 10);
+  //     drawMenu();
+  //   }
+  //   if (M5Dial.BtnA.wasPressed()) {
+  //     encoderOldPosition = M5Dial.Encoder.read();
+  //     if (menuSelectedItem == 0) {         // "Change name"
+  //       uiState = UI_KEYBOARD_NAME;
+  //       textInputBegin("Sensor name:");
+  //     }
+  //   }
+  //   return;
+  // }
 
   // --- Tryb widoku sensora (UI_SENSOR_VIEW) ---
   int activeSlots[MAX_SENSORS];
-  int activeCount = getActiveSlots(activeSlots, MAX_SENSORS);
-
+  int activeCount = 0;
+  if (millis() > checkActiveSensorsTimeout + 1000)
+  {
+    activeCount = getActiveSlots(activeSlots, MAX_SENSORS);
+  }
   if (M5Dial.BtnA.wasPressed() && displayedSlot >= 0) {
-    menuSelectedItem = 0;
-    encoderOldPosition = M5Dial.Encoder.read();
-    uiState = UI_MENU;
-    drawMenu();
-    return;
+    if (!screen_on)
+    {
+      screen_on = true;
+      M5.Display.setBrightness(25);
+    }
+    else
+    {
+      screen_on = false;
+      M5.Display.setBrightness(0);
+    }
+    // menuSelectedItem = 0;
+    // encoderOldPosition = M5Dial.Encoder.read();
+    // uiState = UI_MENU;
+    // drawMenu();
+    // return;
   }
 
   long newPosition = M5Dial.Encoder.read();
@@ -496,6 +538,9 @@ void loop() {
 
     M5Dial.Speaker.tone(4000, 15);
     drawSensorScreen(displayedSlot);
+
+    delay(20);
+    return;
   }
 
   if (displayedSlot < 0 && activeCount > 0) {
@@ -503,7 +548,7 @@ void loop() {
     drawSensorScreen(displayedSlot);
   }
 
-  if (millis() - lastRedraw > 2000) {
+  if (millis() - lastRedraw > 5000) {
     lastRedraw = millis();
     if (displayedSlot >= 0) {
       drawSensorScreen(displayedSlot);

@@ -1,7 +1,7 @@
 #include "ble_scanner.h"
 
 
-//#define DEBUG_ENABLED
+// #define DEBUG_ENABLED
 
 // ============================================================
 // Konfiguracja filtra
@@ -13,14 +13,24 @@ static const uint16_t BTHOME_UUID = 0xFCD2;  /* BTHome v2 Service Data UUID */
 // Parametry skanowania (jednostki: ms - NimBLE-Arduino v2.x
 // przyjmuje setInterval/setWindow bezposrednio w ms)
 // ============================================================
-static const uint16_t SCAN_INTERVAL_MS = 500;
-static const uint16_t SCAN_WINDOW_MS   = 200;
+const uint16_t SCAN_INTERVAL_MS = 1000;
+const uint16_t SCAN_WINDOW_MS   = 900;
 static const bool     SCAN_ACTIVE      = false; // pasywne - my tylko sluchamy adv,
                                                   // nie potrzebujemy scan response
 
 SensorReading sensors[MAX_SENSORS];
 
 static SemaphoreHandle_t sensorsMutex = nullptr;
+
+const SensorNameMap knownNames[MAX_SENSORS] = {
+  {"e1:62:7c:ae:71:40", "Gora"},
+  {"db:cb:7d:51:9a:c5", "Kuchnia"},
+  {"d8:55:70:b6:26:5e", "Dol"},
+  {"fe:73:39:8c:2c:cd", "Dwor"}
+  // dodaj kolejne w miare potrzeb (max 10 wynika z MAX_SENSORS w ble_scanner.h)
+};
+const int knownNamesCount = sizeof(knownNames) / sizeof(knownNames[0]);
+
 
 // ============================================================
 // Parsowanie BTHome v2 Service Data (z Object ID'ami)
@@ -196,15 +206,13 @@ class ScanCallbacks : public NimBLEScanCallbacks {
     sensors[slot].pressure       = parsed.pressure;
     sensors[slot].humidity       = parsed.humidity;
     sensors[slot].lastUpdate     = millis();
-
-#ifdef DEBUG_ENABLED
+    xSemaphoreGive(sensorsMutex);
     Serial.printf("[BLE] slot=%d mac=%s txid=%u bat=%u%% T=%.1fC P=%.0fhPa H=%.0f%%\n",
                   slot, mac.c_str(), sensors[slot].transaction_id,
                   sensors[slot].battery_level, sensors[slot].temperature,
                   sensors[slot].pressure, sensors[slot].humidity);
-#endif
 
-    xSemaphoreGive(sensorsMutex);
+
 
     // TODO integracja z UI: tutaj (poza sekcja krytyczna) wywolasz np.
     //   updateSensor(slot, sensors[slot].temperature, sensors[slot].pressure);
@@ -233,7 +241,7 @@ void bleScanInit() {
   pScan->setActiveScan(SCAN_ACTIVE);
   pScan->setInterval(SCAN_INTERVAL_MS);
   pScan->setWindow(SCAN_WINDOW_MS);
-
+  // pScan->setMaxResults(100); 
   pScan->start(0, false); // 0 = skanuj w nieskonczonosc, nieblokujaco
 
 #ifdef DEBUG_ENABLED
